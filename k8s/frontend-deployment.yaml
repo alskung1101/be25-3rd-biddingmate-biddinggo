@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: alskung/biddinggo-frontend:2-25c9111e73e3
+          image: alskung/biddinggo-frontend:3-a177698f37c1
           imagePullPolicy: Always
           ports:
             - name: http
