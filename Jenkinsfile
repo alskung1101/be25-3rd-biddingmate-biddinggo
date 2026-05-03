@@ -28,6 +28,12 @@ spec:
         type: Socket
 ''') {
   node(POD_LABEL) {
+    properties([
+      pipelineTriggers([
+        githubPush()
+      ])
+    ])
+
     def dockerImage = 'alskung/biddinggo-frontend'
     def dockerhubCredentialsId = 'dockerhub-access'
     def githubCredentialsId = 'github-token-biddinggo'

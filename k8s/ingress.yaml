@@ -8,6 +8,44 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
+    - host: biddinggo.local
+      http:
+        paths:
+          - path: /api/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: biddinggo-backend-service
+                port:
+                  number: 8080
+          - path: /actuator
+            pathType: Prefix
+            backend:
+              service:
+                name: biddinggo-backend-service
+                port:
+                  number: 8080
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: biddinggo-backend-service
+                port:
+                  number: 8080
+          - path: /login/oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: biddinggo-backend-service
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: biddinggo-frontend-service
+                port:
+                  number: 80
     - http:
         paths:
           - path: /api/v1
