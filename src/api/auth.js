@@ -1,7 +1,7 @@
-import { API_BASE_URL, request, unwrap } from './http'
+import { buildBackendUrl, request, unwrap } from './http'
 
 export function buildSocialLoginUrl(provider) {
-  return `${API_BASE_URL}/oauth2/authorization/${provider}`
+  return buildBackendUrl(`/oauth2/authorization/${provider}`)
 }
 
 export async function checkAuthStatus() {

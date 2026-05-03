@@ -1,6 +1,6 @@
 import { computed, reactive } from "vue"
 import {fetchEventSource} from '@microsoft/fetch-event-source'
-import { API_BASE_URL } from "../api/http"
+import { API_BASE_URL, buildApiUrl } from "../api/http"
 import { 
     authState,
     clearSession, 
@@ -211,7 +211,7 @@ async function openSseStream() {
     
     streamController = new AbortController()
 
-    void fetchEventSource(`${API_BASE_URL}/api/v1/notifications/subscribe`, {
+    void fetchEventSource(buildApiUrl('/api/v1/notifications/subscribe'), {
         method: 'GET',
         openWhenHidden: true,
         signal: streamController.signal,

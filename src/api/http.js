@@ -19,6 +19,56 @@ function deriveApiBaseUrl() {
 
 export const API_BASE_URL = deriveApiBaseUrl()
 
+function normalizePath(path = '') {
+  const value = String(path || '').trim()
+  return value.startsWith('/') ? value : `/${value}`
+}
+
+export function buildApiUrl(path) {
+  const rawPath = String(path || '').trim()
+
+  if (/^https?:\/\//i.test(rawPath)) {
+    return rawPath
+  }
+
+  const targetPath = normalizePath(rawPath)
+
+  if (!API_BASE_URL) {
+    return targetPath
+  }
+
+  try {
+    const baseUrl = new URL(API_BASE_URL)
+    const basePath = baseUrl.pathname.replace(/\/$/, '')
+
+    if (basePath && targetPath.startsWith(`${basePath}/`)) {
+      return `${baseUrl.origin}${targetPath}`
+    }
+
+    return `${API_BASE_URL}${targetPath}`
+  } catch {
+    if (targetPath.startsWith(`${API_BASE_URL}/`) || targetPath === API_BASE_URL) {
+      return targetPath
+    }
+
+    return `${API_BASE_URL}${targetPath}`
+  }
+}
+
+export function buildBackendUrl(path) {
+  const targetPath = normalizePath(path)
+
+  if (!API_BASE_URL) {
+    return targetPath
+  }
+
+  try {
+    return `${new URL(API_BASE_URL).origin}${targetPath}`
+  } catch {
+    return targetPath
+  }
+}
+
 let refreshPromise = null
 const { showToast } = useToast()
 
@@ -104,7 +154,7 @@ async function attemptRefreshToken() {
       let response
 
       try {
-        response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+        response = await fetch(buildApiUrl('/api/v1/auth/refresh'), {
           method: 'POST',
           credentials: 'include',
         })
@@ -140,7 +190,7 @@ function needsCookie(path) {
 
 async function performRequest(path, options = {}, allowRefresh = true) {
   const { auth = false, ...fetchOptions } = options
-  const target = `${API_BASE_URL}${path}`
+  const target = buildApiUrl(path)
   let response
 
   if (auth && allowRefresh && path !== '/api/v1/auth/refresh' && shouldRefreshAccessToken()) {
