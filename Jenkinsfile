@@ -1,107 +1,109 @@
-pipeline {
-  agent any
+podTemplate(yaml: '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: node
+      image: node:22-alpine
+      command:
+        - cat
+      tty: true
+    - name: docker
+      image: docker:29-cli
+      command:
+        - cat
+      tty: true
+      volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+    - name: jnlp
+      image: alskung/biddinggo-jenkins-agent:latest
+      volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+  volumes:
+    - name: docker-sock
+      hostPath:
+        path: /var/run/docker.sock
+        type: Socket
+''') {
+  node(POD_LABEL) {
+    def dockerImage = 'alskung/biddinggo-frontend'
+    def dockerhubCredentialsId = 'dockerhub-access'
+    def githubCredentialsId = 'github-token-biddinggo'
+    def k8sDeploymentManifest = 'k8s/frontend-deployment.yaml'
+    def viteApiBaseUrl = '/api/v1'
+    def imageTag = ''
+    def targetBranch = ''
+    def skipCi = false
 
-  options {
-    disableConcurrentBuilds()
-    timestamps()
-  }
-
-  environment {
-    DOCKER_IMAGE = 'alskung/biddinggo-frontend'
-    DOCKERHUB_CREDENTIALS_ID = 'dockerhub-credentials'
-    GITHUB_CREDENTIALS_ID = 'github-credentials'
-    K8S_DEPLOYMENT_MANIFEST = 'k8s/frontend-deployment.yaml'
-    VITE_API_BASE_URL = '/api/v1'
-  }
-
-  stages {
     stage('Checkout') {
-      steps {
-        checkout scm
-        script {
-          env.GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
-          env.IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT_SHORT}"
-          env.LAST_COMMIT_MESSAGE = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-        }
-      }
-    }
+      checkout scm
+      def gitCommitShort = sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
+      imageTag = "${env.BUILD_NUMBER}-${gitCommitShort}"
+      targetBranch = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: 'origin/feat/frontend-deploy').replaceFirst('^origin/', '')
+      skipCi = sh(script: "git log -1 --pretty=%B | grep -qi '\\[skip ci\\]'", returnStatus: true) == 0
 
-    stage('Skip CI Commit') {
-      when {
-        expression { env.LAST_COMMIT_MESSAGE.contains('[skip ci]') }
-      }
-      steps {
+      if (skipCi) {
         echo 'Skipping manifest-only CI commit.'
       }
     }
 
-    stage('Install') {
-      when {
-        expression { !env.LAST_COMMIT_MESSAGE.contains('[skip ci]') }
+    if (!skipCi) {
+      stage('Install') {
+        container('node') {
+          sh 'npm ci'
+        }
       }
-      steps {
-        sh 'npm ci'
-      }
-    }
 
-    stage('Build') {
-      when {
-        expression { !env.LAST_COMMIT_MESSAGE.contains('[skip ci]') }
+      stage('Build') {
+        container('node') {
+          sh 'npm run build'
+        }
       }
-      steps {
-        sh 'npm run build'
-      }
-    }
 
-    stage('Docker Build and Push') {
-      when {
-        expression { !env.LAST_COMMIT_MESSAGE.contains('[skip ci]') }
-      }
-      steps {
-        script {
-          docker.withRegistry('https://index.docker.io/v1/', env.DOCKERHUB_CREDENTIALS_ID) {
-            def app = docker.build(
-              "${env.DOCKER_IMAGE}:${env.IMAGE_TAG}",
-              "--build-arg VITE_API_BASE_URL=${env.VITE_API_BASE_URL} ."
-            )
-            app.push()
-            app.push('latest')
+      stage('Docker Build and Push') {
+        container('docker') {
+          withCredentials([usernamePassword(
+            credentialsId: dockerhubCredentialsId,
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+          )]) {
+            sh """
+              set -eu
+              echo "\$DOCKER_PASSWORD" | docker login -u "\$DOCKER_USERNAME" --password-stdin
+              docker build --build-arg VITE_API_BASE_URL=${viteApiBaseUrl} -t ${dockerImage}:${imageTag} -t ${dockerImage}:latest .
+              docker push ${dockerImage}:${imageTag}
+              docker push ${dockerImage}:latest
+              docker logout
+            """
           }
         }
       }
-    }
 
-    stage('Update Kubernetes Manifest') {
-      when {
-        expression { !env.LAST_COMMIT_MESSAGE.contains('[skip ci]') }
-      }
-      steps {
+      stage('Update Kubernetes Manifest') {
         withCredentials([usernamePassword(
-          credentialsId: env.GITHUB_CREDENTIALS_ID,
+          credentialsId: githubCredentialsId,
           usernameVariable: 'GIT_USERNAME',
           passwordVariable: 'GIT_PASSWORD'
         )]) {
-          sh '''
+          sh """
             set -eu
-            sed -i "s#image: alskung/biddinggo-frontend:.*#image: alskung/biddinggo-frontend:${IMAGE_TAG}#" "${K8S_DEPLOYMENT_MANIFEST}"
+            sed -i "s#image: ${dockerImage}:.*#image: ${dockerImage}:${imageTag}#" "${k8sDeploymentManifest}"
             git config user.name "jenkins"
             git config user.email "jenkins@local"
-            git add "${K8S_DEPLOYMENT_MANIFEST}"
+            git add "${k8sDeploymentManifest}"
             if git diff --cached --quiet; then
               echo "No manifest change to commit."
               exit 0
             fi
-            git commit -m "ci: deploy frontend ${IMAGE_TAG} [skip ci]"
-            git push "https://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_URL#https://}" HEAD:${BRANCH_NAME}
-          '''
+            git commit -m "ci: deploy frontend ${imageTag} [skip ci]"
+            git push "https://\$GIT_USERNAME:\$GIT_PASSWORD@github.com/alskung1101/be25-3rd-biddingmate-biddinggo.git" HEAD:${targetBranch}
+          """
         }
       }
     }
-  }
 
-  post {
-    success {
-      echo 'Frontend image pushed and Kubernetes manifest updated. Argo CD will deploy from the GitOps change.'
-    }
+    echo "Frontend CI pipeline completed. Image: ${dockerImage}:${imageTag}"
   }
 }
