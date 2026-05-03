@@ -15,10 +15,11 @@ export async function checkAuthStatus() {
   )
 }
 
-export async function refreshAccessToken() {
+export async function refreshAccessToken(options = {}) {
   return unwrap(
     await request('/api/v1/auth/refresh', {
       method: 'POST',
+      suppressErrorToast: options.suppressErrorToast ?? false,
     }),
   )
 }

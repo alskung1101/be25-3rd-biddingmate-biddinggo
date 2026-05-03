@@ -19,7 +19,7 @@ async function syncCurrentUser() {
 }
 
 async function restoreSessionFromRefresh() {
-  const loginResponse = await refreshAccessToken()
+  const loginResponse = await refreshAccessToken({ suppressErrorToast: true })
   setSession(loginResponse)
   await syncCurrentUser()
 
