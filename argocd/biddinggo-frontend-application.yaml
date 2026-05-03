@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: biddinggo-frontend
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/alskung1101/be25-3rd-biddingmate-biddinggo.git
+    targetRevision: feat/frontend-deploy
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: biddinggo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
