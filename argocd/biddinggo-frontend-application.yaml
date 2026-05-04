@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/alskung1101/be25-3rd-biddingmate-biddinggo.git
+    repoURL: git@github.com:alskung1101/be25-3rd-biddingmate-biddinggo.git
     targetRevision: feat/frontend-deploy
     path: k8s
   destination:
