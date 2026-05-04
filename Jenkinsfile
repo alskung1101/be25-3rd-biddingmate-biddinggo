@@ -37,7 +37,7 @@ spec:
     def dockerImage = 'alskung/biddinggo-frontend'
     def dockerhubCredentialsId = 'dockerhub-access'
     def githubCredentialsId = 'github-token-biddinggo'
-    def k8sDeploymentManifest = 'k8s/frontend-deployment.yaml'
+    def k8sDeploymentManifest = 'k8s/frontend/deployment.yaml'
     def viteApiBaseUrl = '/api/v1'
     def imageTag = ''
     def targetBranch = ''
